@@ -1,10 +1,13 @@
-use rusoto_core::RusotoFuture;
+use rusoto_core::{RusotoError, RusotoFuture};
+use rusoto_s3::CreateBucketError::{BucketAlreadyExists, BucketAlreadyOwnedByYou};
 use rusoto_s3::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+#[derive(Default)]
 pub struct S3Mock {
     pub create_bucket_request: Rc<RefCell<Vec<CreateBucketRequest>>>,
+    pub create_bucket_error: Option<CreateBucketError>,
 }
 
 impl S3 for S3Mock {
@@ -13,7 +16,19 @@ impl S3 for S3Mock {
         request: CreateBucketRequest,
     ) -> RusotoFuture<CreateBucketOutput, CreateBucketError> {
         self.create_bucket_request.borrow_mut().push(request);
-        RusotoFuture::from(Ok(CreateBucketOutput { location: None }))
+        match &self.create_bucket_error {
+            None => RusotoFuture::from(Ok(CreateBucketOutput { location: None })),
+            Some(e) => match e {
+                BucketAlreadyOwnedByYou(msg) => Err(RusotoError::Service(BucketAlreadyOwnedByYou(
+                    msg.to_string(),
+                )))
+                .into(),
+                BucketAlreadyExists(msg) => Err(RusotoError::Service(BucketAlreadyExists(
+                    msg.to_string(),
+                )))
+                .into(),
+            },
+        }
     }
 
     fn abort_multipart_upload(
