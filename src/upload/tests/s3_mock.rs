@@ -2,12 +2,21 @@ use rusoto_core::{RusotoError, RusotoFuture};
 use rusoto_s3::CreateBucketError::{BucketAlreadyExists, BucketAlreadyOwnedByYou};
 use rusoto_s3::*;
 use std::cell::RefCell;
+use std::io::Read;
 use std::rc::Rc;
+
+#[derive(Debug)]
+pub struct PutObjectData {
+    pub bucket: String,
+    pub key: String,
+    pub body: Vec<u8>,
+}
 
 #[derive(Default)]
 pub struct S3Mock {
-    pub create_bucket_request: Rc<RefCell<Vec<CreateBucketRequest>>>,
+    pub create_bucket_requests: Rc<RefCell<Vec<CreateBucketRequest>>>,
     pub create_bucket_error: Option<CreateBucketError>,
+    pub put_object_requests: Rc<RefCell<Vec<PutObjectData>>>,
 }
 
 impl S3 for S3Mock {
@@ -15,33 +24,44 @@ impl S3 for S3Mock {
         &self,
         request: CreateBucketRequest,
     ) -> RusotoFuture<CreateBucketOutput, CreateBucketError> {
-        self.create_bucket_request.borrow_mut().push(request);
+        self.create_bucket_requests.borrow_mut().push(request);
         match &self.create_bucket_error {
-            None => RusotoFuture::from(Ok(CreateBucketOutput { location: None })),
+            None => RusotoFuture::from(Ok(Default::default())),
             Some(e) => match e {
                 BucketAlreadyOwnedByYou(msg) => Err(RusotoError::Service(BucketAlreadyOwnedByYou(
                     msg.to_string(),
                 )))
                 .into(),
-                BucketAlreadyExists(msg) => Err(RusotoError::Service(BucketAlreadyExists(
-                    msg.to_string(),
-                )))
-                .into(),
+                BucketAlreadyExists(msg) => {
+                    Err(RusotoError::Service(BucketAlreadyExists(msg.to_string()))).into()
+                }
             },
         }
+    }
+
+    fn put_object(
+        &self,
+        request: PutObjectRequest,
+    ) -> RusotoFuture<PutObjectOutput, PutObjectError> {
+        let mut body = vec![];
+        request
+            .body
+            .unwrap()
+            .into_blocking_read()
+            .read_to_end(&mut body)
+            .unwrap();
+        self.put_object_requests.borrow_mut().push(PutObjectData {
+            bucket: request.bucket,
+            key: request.key,
+            body,
+        });
+        RusotoFuture::from(Ok(Default::default()))
     }
 
     fn abort_multipart_upload(
         &self,
         _input: AbortMultipartUploadRequest,
     ) -> RusotoFuture<AbortMultipartUploadOutput, AbortMultipartUploadError> {
-        unimplemented!();
-    }
-
-    fn put_object(
-        &self,
-        _input: PutObjectRequest,
-    ) -> RusotoFuture<PutObjectOutput, PutObjectError> {
         unimplemented!();
     }
 

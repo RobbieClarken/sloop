@@ -1,6 +1,8 @@
 use rusoto_core::{Region, RusotoError};
 use rusoto_s3::CreateBucketError::BucketAlreadyOwnedByYou;
-use rusoto_s3::{CreateBucketConfiguration, CreateBucketRequest, S3Client, S3};
+use rusoto_s3::{CreateBucketConfiguration, CreateBucketRequest, PutObjectRequest, S3Client, S3};
+use std::fs;
+use std::io::Read;
 use std::str::FromStr;
 
 pub struct S3Uploader {
@@ -27,8 +29,9 @@ impl S3Uploader {
         })
     }
 
-    pub fn upload(&self, _target_dir: &str) -> Result<(), UploadError> {
+    pub fn upload(&self, target_dir: &str) -> Result<(), UploadError> {
         self.create_bucket()?;
+        self.upload_files(target_dir)?;
         Ok(())
     }
 
@@ -52,6 +55,25 @@ impl S3Uploader {
         }
         Ok(())
     }
+
+    fn upload_files(&self, target_dir: &str) -> Result<(), UploadError> {
+        let paths = fs::read_dir(target_dir).unwrap();
+        for path in paths {
+            let p = path.unwrap().path();
+            let file_name = p.file_name().unwrap().to_str().unwrap();
+            let mut file = fs::File::open(&p).unwrap();
+            let mut body = vec![];
+            file.read_to_end(&mut body).unwrap();
+            let request = PutObjectRequest {
+                body: Some(body.into()),
+                bucket: self.bucket_name.clone(),
+                key: file_name.to_owned(),
+                ..Default::default()
+            };
+            self.client.put_object(request).sync().unwrap();
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -67,7 +89,7 @@ mod tests {
     fn creates_an_s3_bucket() {
         let requests = Rc::new(RefCell::new(Vec::new()));
         let s3 = s3_mock::S3Mock {
-            create_bucket_request: Rc::clone(&requests),
+            create_bucket_requests: Rc::clone(&requests),
             ..Default::default()
         };
         let uploader = S3Uploader {
@@ -75,7 +97,7 @@ mod tests {
             region: String::from("region1"),
             bucket_name: String::from("bucket1"),
         };
-        uploader.upload("test_fixtures/dir1/file1.txt").unwrap();
+        uploader.upload("test_fixtures/dir1").unwrap();
         let request = requests.borrow().get(0).unwrap().clone();
         assert_eq!(request.bucket, "bucket1");
         assert_eq!(
@@ -98,7 +120,7 @@ mod tests {
             region: String::from("region1"),
             bucket_name: String::from("bucket1"),
         };
-        uploader.upload("test_fixtures/dir1/file1.txt").unwrap();
+        uploader.upload("test_fixtures/dir1").unwrap();
     }
 
     #[test]
@@ -112,9 +134,28 @@ mod tests {
             region: String::from("region1"),
             bucket_name: String::from("bucket1"),
         };
-        assert_eq!(
-            uploader.upload("test_fixtures/dir1/file1.txt").is_err(),
-            true
-        );
+        assert_eq!(uploader.upload("test_fixtures/dir1").is_err(), true);
+    }
+
+    #[test]
+    fn uploads_files_in_directory() {
+        let requests = Rc::new(RefCell::new(Vec::new()));
+        {
+            let s3 = s3_mock::S3Mock {
+                put_object_requests: Rc::clone(&requests),
+                ..Default::default()
+            };
+            let uploader = S3Uploader {
+                client: Box::new(s3),
+                region: String::from("region1"),
+                bucket_name: String::from("bucket1"),
+            };
+            uploader.upload("test_fixtures/dir1").unwrap();
+        }
+        let requests = Rc::try_unwrap(requests).unwrap().into_inner();
+        let request = requests.get(0).unwrap().clone();
+        assert_eq!(request.bucket, String::from("bucket1"));
+        assert_eq!(request.key, String::from("file1.txt"));
+        assert_eq!(request.body, b"data1\n");
     }
 }
