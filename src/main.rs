@@ -1,6 +1,10 @@
+use std::fs::File;
+
+mod feed;
 mod upload;
 
 fn main() {
-    let uploader = upload::S3Uploader::new("ap-southeast-2", "sloop-rbc-test-1").unwrap();
-    uploader.upload("test_fixtures/dir1/").unwrap();
+    let out = File::create("feed.xml").unwrap();
+    let feed = feed::FeedGenerator {};
+    feed.generate_for_dir("test_fixtures/dir1/", out);
 }
