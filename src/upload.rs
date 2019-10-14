@@ -155,7 +155,7 @@ mod tests {
         let requests = Rc::try_unwrap(requests).unwrap().into_inner();
         let request = requests.get(0).unwrap().clone();
         assert_eq!(request.bucket, String::from("bucket1"));
-        assert_eq!(request.key, String::from("file1.txt"));
+        assert_eq!(request.key, String::from("file1.mp3"));
         assert_eq!(request.body, b"data1\n");
     }
 }

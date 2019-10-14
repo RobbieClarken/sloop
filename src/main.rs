@@ -5,6 +5,8 @@ mod upload;
 
 fn main() {
     let out = File::create("feed.xml").unwrap();
-    let feed = feed::FeedGenerator {};
+    let feed = feed::FeedGenerator {
+        base_url: String::from("http://eg.test"),
+    };
     feed.generate_for_dir("test_fixtures/dir1/", out);
 }
