@@ -1136,6 +1136,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "sloop"
 version = "0.1.0"
 dependencies = [
+ "chrono 0.4.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "rss 1.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rusoto_core 0.41.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rusoto_s3 0.41.0 (registry+https://github.com/rust-lang/crates.io-index)",

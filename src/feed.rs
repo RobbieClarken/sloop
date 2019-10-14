@@ -3,6 +3,7 @@ use rss::{ChannelBuilder, EnclosureBuilder, Item, ItemBuilder};
 use std::collections::HashMap;
 use std::fs;
 use std::io::prelude::*;
+use chrono::Utc;
 
 pub struct FeedGenerator {
     pub base_url: String,
@@ -20,6 +21,7 @@ impl FeedGenerator {
             .unwrap();
         let mut items: Vec<Item> = Default::default();
         let paths = fs::read_dir(files_dir).unwrap();
+        let date = Utc::today().and_hms(0, 0, 0); // TODO: change for each file
         for path in paths {
             let p = path.unwrap().path();
             let file_name = p.file_name().unwrap().to_str().unwrap();
@@ -42,6 +44,7 @@ impl FeedGenerator {
             .namespaces(namespaces)
             .itunes_ext(itunes_ext)
             .items(items)
+            .pub_date(date.to_rfc2822())
             .build()
             .unwrap();
         channel.pretty_write_to(&mut writer, b' ', 2).unwrap();
@@ -80,5 +83,7 @@ mod tests {
             "url=\"https://eg.test/file1.mp3\" length=\"6\" type=\"audio/mpeg\""
         );
         assert_contains!(feed, "<title>file1</title>");
+        let pub_date = Utc::today().and_hms(0, 0, 0).to_rfc2822();
+        assert_contains!(feed, format!("<pubDate>{}</pubDate>", pub_date).as_str());
     }
 }
