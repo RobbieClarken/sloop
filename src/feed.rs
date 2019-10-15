@@ -6,6 +6,7 @@ use std::io::prelude::*;
 use chrono::Utc;
 
 pub struct FeedGenerator {
+    pub title: String,
     pub base_url: String,
 }
 
@@ -42,6 +43,7 @@ impl FeedGenerator {
         }
         let channel = ChannelBuilder::default()
             .namespaces(namespaces)
+            .title(self.title.clone())
             .itunes_ext(itunes_ext)
             .items(items)
             .pub_date(date.to_rfc2822())
@@ -72,10 +74,12 @@ mod tests {
     fn generates_xml_for_dir() {
         let mut buffer = Vec::new();
         let generator = FeedGenerator {
+            title: "Feed Title 1".to_owned(),
             base_url: "https://eg.test".to_owned(),
         };
         generator.generate_for_dir("test_fixtures/dir1/", &mut buffer);
         let feed = String::from_utf8(buffer).unwrap();
+        assert_contains!(feed, "<title>Feed Title 1</title>");
         assert_contains!(feed, "xmlns:itunes");
         assert_contains!(feed, "<itunes:block>Yes</itunes:block>");
         assert_contains!(
