@@ -3,6 +3,7 @@ use rusoto_s3::CreateBucketError::BucketAlreadyOwnedByYou;
 use rusoto_s3::{CreateBucketConfiguration, CreateBucketRequest, PutObjectRequest, S3Client, S3};
 use std::fs;
 use std::io::Read;
+use std::path::PathBuf;
 use std::str::FromStr;
 
 pub struct S3Uploader {
@@ -30,12 +31,15 @@ impl S3Uploader {
     }
 
     pub fn base_url(&self) -> String {
-        format!("https://{}.s3-{}.amazonaws.com", self.bucket_name, self.region)
+        format!(
+            "https://{}.s3-{}.amazonaws.com",
+            self.bucket_name, self.region
+        )
     }
 
-    pub fn upload(&self, target_dir: &str) -> Result<(), UploadError> {
+    pub fn upload(&self, files: Vec<PathBuf>) -> Result<(), UploadError> {
         self.create_bucket()?;
-        self.upload_files(target_dir)?;
+        self.upload_files(files)?;
         Ok(())
     }
 
@@ -60,10 +64,8 @@ impl S3Uploader {
         Ok(())
     }
 
-    fn upload_files(&self, target_dir: &str) -> Result<(), UploadError> {
-        let paths = fs::read_dir(target_dir).unwrap();
-        for path in paths {
-            let p = path.unwrap().path();
+    fn upload_files(&self, files: Vec<PathBuf>) -> Result<(), UploadError> {
+        for p in files {
             let file_name = p.file_name().unwrap().to_str().unwrap();
             let mut file = fs::File::open(&p).unwrap();
             let mut body = vec![];
@@ -87,6 +89,7 @@ mod tests {
     use super::*;
     use rusoto_s3::CreateBucketError::BucketAlreadyExists;
     use std::cell::RefCell;
+    use std::path::Path;
     use std::rc::Rc;
 
     #[test]
@@ -101,7 +104,7 @@ mod tests {
             region: String::from("region1"),
             bucket_name: String::from("bucket1"),
         };
-        uploader.upload("test_fixtures/dir1").unwrap();
+        uploader.upload(vec![]).unwrap();
         let request = requests.borrow().get(0).unwrap().clone();
         assert_eq!(request.bucket, "bucket1");
         assert_eq!(
@@ -124,7 +127,7 @@ mod tests {
             region: String::from("region1"),
             bucket_name: String::from("bucket1"),
         };
-        uploader.upload("test_fixtures/dir1").unwrap();
+        uploader.upload(vec![]).unwrap();
     }
 
     #[test]
@@ -138,7 +141,7 @@ mod tests {
             region: String::from("region1"),
             bucket_name: String::from("bucket1"),
         };
-        assert_eq!(uploader.upload("test_fixtures/dir1").is_err(), true);
+        assert_eq!(uploader.upload(vec![]).is_err(), true);
     }
 
     #[test]
@@ -154,7 +157,8 @@ mod tests {
                 region: String::from("region1"),
                 bucket_name: String::from("bucket1"),
             };
-            uploader.upload("test_fixtures/dir1").unwrap();
+            let files = vec![Path::new("test_fixtures/dir1/file1.mp3").to_path_buf()];
+            uploader.upload(files).unwrap();
         }
         let requests = Rc::try_unwrap(requests).unwrap().into_inner();
         let request = requests.get(0).unwrap().clone();
@@ -171,6 +175,9 @@ mod tests {
             region: String::from("region1"),
             bucket_name: String::from("bucket1"),
         };
-        assert_eq!(uploader.base_url(), "https://bucket1.s3-region1.amazonaws.com");
+        assert_eq!(
+            uploader.base_url(),
+            "https://bucket1.s3-region1.amazonaws.com"
+        );
     }
 }
