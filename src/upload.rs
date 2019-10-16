@@ -29,6 +29,10 @@ impl S3Uploader {
         })
     }
 
+    pub fn base_url(&self) -> String {
+        format!("https://{}.s3-{}.amazonaws.com", self.bucket_name, self.region)
+    }
+
     pub fn upload(&self, target_dir: &str) -> Result<(), UploadError> {
         self.create_bucket()?;
         self.upload_files(target_dir)?;
@@ -157,5 +161,16 @@ mod tests {
         assert_eq!(request.bucket, String::from("bucket1"));
         assert_eq!(request.key, String::from("file1.mp3"));
         assert_eq!(request.body, b"data1\n");
+    }
+
+    #[test]
+    fn base_url_returns_url_for_bucket() {
+        let s3: s3_mock::S3Mock = Default::default();
+        let uploader = S3Uploader {
+            client: Box::new(s3),
+            region: String::from("region1"),
+            bucket_name: String::from("bucket1"),
+        };
+        assert_eq!(uploader.base_url(), "https://bucket1.s3-region1.amazonaws.com");
     }
 }

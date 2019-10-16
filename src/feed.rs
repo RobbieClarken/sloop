@@ -1,4 +1,4 @@
-use chrono::Utc;
+use chrono::{Duration, Utc};
 use rss::extension::itunes::{ITunesChannelExtensionBuilder, NAMESPACE};
 use rss::{ChannelBuilder, EnclosureBuilder, Item, ItemBuilder};
 use std::collections::HashMap;
@@ -62,17 +62,19 @@ impl FeedGenerator {
             .build()
             .unwrap();
         let mut items: Vec<Item> = Default::default();
-        let date = Utc::today().and_hms(0, 0, 0); // TODO: change for each file
-        for file in files {
+        let today = Utc::today().and_hms(0, 0, 0);
+        for (i, file) in files.iter().enumerate() {
+            let pub_date = (today - Duration::days(i as i64)).to_rfc2822();
             let enclosure = EnclosureBuilder::default()
                 .url(format!("{}/{}", self.base_url, file.name()))
-                .mime_type(FeedGenerator::mime_type(&file))
+                .mime_type(FeedGenerator::mime_type(file))
                 .length(file.len().to_string())
                 .build()
                 .unwrap();
             let item = ItemBuilder::default()
                 .title(Some(String::from(file.stem())))
                 .enclosure(Some(enclosure))
+                .pub_date(pub_date)
                 .build()
                 .unwrap();
             items.push(item);
@@ -82,7 +84,6 @@ impl FeedGenerator {
             .title(self.title.clone())
             .itunes_ext(itunes_ext)
             .items(items)
-            .pub_date(date.to_rfc2822())
             .build()
             .unwrap();
         channel.pretty_write_to(&mut writer, b' ', 2).unwrap();
@@ -102,6 +103,16 @@ impl FeedGenerator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use roxmltree::{Document, Node};
+
+    fn get_child_node_text<'a>(parent: &'a Node, child_tag: &str) -> &'a str {
+        parent
+            .descendants()
+            .find(|n| n.tag_name().name() == child_tag)
+            .unwrap()
+            .text()
+            .unwrap()
+    }
 
     struct MockMediaFile {
         name: String,
@@ -154,11 +165,11 @@ mod tests {
 
     #[test]
     fn generates_xml_for_dir() {
-        let mut buffer = Vec::new();
         let generator = FeedGenerator {
             title: "Feed Title 1".to_owned(),
             base_url: "https://eg.test".to_owned(),
         };
+        let mut buffer = Vec::new();
         generator.generate_for_dir("test_fixtures/dir1/", &mut buffer);
         let feed = String::from_utf8(buffer).unwrap();
         assert_contains!(feed, "<title>Feed Title 1</title>");
@@ -169,19 +180,79 @@ mod tests {
             "url=\"https://eg.test/file1.mp3\" length=\"6\" type=\"audio/mpeg\""
         );
         assert_contains!(feed, "<title>file1</title>");
-        let pub_date = Utc::today().and_hms(0, 0, 0).to_rfc2822();
-        assert_contains!(feed, format!("<pubDate>{}</pubDate>", pub_date).as_str());
     }
 
     #[test]
     fn outputs_correct_mime_type() {
-        let mp3 = MockMediaFile { extension: "mp3".to_owned(), ..Default::default() };
+        let mp3 = MockMediaFile {
+            extension: "mp3".to_owned(),
+            ..Default::default()
+        };
         assert_eq!(FeedGenerator::mime_type(&mp3), "audio/mpeg");
-        let mp4 = MockMediaFile { extension: "mp4".to_owned(), ..Default::default() };
+        let mp4 = MockMediaFile {
+            extension: "mp4".to_owned(),
+            ..Default::default()
+        };
         assert_eq!(FeedGenerator::mime_type(&mp4), "audio/mp4");
-        let aac = MockMediaFile { extension: "aac".to_owned(), ..Default::default() };
+        let aac = MockMediaFile {
+            extension: "aac".to_owned(),
+            ..Default::default()
+        };
         assert_eq!(FeedGenerator::mime_type(&aac), "audio/aac");
-        let m4a = MockMediaFile { extension: "m4a".to_owned(), ..Default::default() };
+        let m4a = MockMediaFile {
+            extension: "m4a".to_owned(),
+            ..Default::default()
+        };
         assert_eq!(FeedGenerator::mime_type(&m4a), "audio/mp4");
+    }
+
+    #[test]
+    fn pub_dates_go_in_reverse() {
+        let files = vec![
+            MockMediaFile {
+                stem: "file1".to_owned(),
+                ..Default::default()
+            },
+            MockMediaFile {
+                stem: "file2".to_owned(),
+                ..Default::default()
+            },
+            MockMediaFile {
+                stem: "file3".to_owned(),
+                ..Default::default()
+            },
+        ];
+        let generator = FeedGenerator {
+            title: "Feed Title 1".to_owned(),
+            base_url: "https://eg.test".to_owned(),
+        };
+        let mut buffer = Vec::new();
+        generator.generate_for_files(files, &mut buffer);
+        let feed = String::from_utf8(buffer).unwrap();
+        let doc = Document::parse(&feed).unwrap();
+        let items: Vec<Node> = doc
+            .descendants()
+            .filter(|n| n.tag_name().name() == "item")
+            .collect();
+        assert_eq!(items.len(), 3);
+        let today = Utc::today().and_hms(0, 0, 0);
+        let item = items.get(0).unwrap();
+        assert_eq!(get_child_node_text(item, "title"), "file1");
+        assert_eq!(
+            get_child_node_text(item, "pubDate"),
+            (today - Duration::days(0)).to_rfc2822()
+        );
+        let item = items.get(1).unwrap();
+        assert_eq!(get_child_node_text(item, "title"), "file2");
+        assert_eq!(
+            get_child_node_text(item, "pubDate"),
+            (today - Duration::days(1)).to_rfc2822()
+        );
+        let item = items.get(2).unwrap();
+        assert_eq!(get_child_node_text(item, "title"), "file3");
+        assert_eq!(
+            get_child_node_text(item, "pubDate"),
+            (today - Duration::days(2)).to_rfc2822()
+        );
     }
 }
