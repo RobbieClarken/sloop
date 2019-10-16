@@ -17,6 +17,8 @@ enum Opt {
         bucket: String,
         #[structopt(short, long)]
         out: PathBuf,
+        #[structopt(long)]
+        upload: bool,
         #[structopt(parse(from_os_str))]
         files: Vec<PathBuf>,
     },
@@ -38,6 +40,7 @@ fn main() {
             region,
             bucket,
             out,
+            upload,
             files,
         } => {
             let uploader = upload::S3Uploader::new(&region, &bucket).unwrap();
@@ -45,9 +48,13 @@ fn main() {
                 title,
                 base_url: uploader.base_url(),
             };
-            let out = File::create(out).unwrap();
-            let files = files.iter().map(|path| feed::MediaFile { path }).collect();
-            feed.generate_for_files(files, out);
+            let media_files = files.iter().map(|path| feed::MediaFile { path }).collect();
+            feed.generate_for_files(media_files, File::create(&out).unwrap());
+            if upload {
+                let mut upload_files = vec![out];
+                upload_files.extend(files);
+                uploader.upload(upload_files).unwrap();
+            }
         }
         Opt::Upload {
             region,
