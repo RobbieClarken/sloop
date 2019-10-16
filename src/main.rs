@@ -47,9 +47,7 @@ fn main() {
             let out = File::create(out).unwrap();
             let files = files
                 .iter()
-                .map(|f| feed::MediaFile {
-                    path: f.to_owned(),
-                })
+                .map(|path| feed::MediaFile { path })
                 .collect();
             feed.generate_for_files(files, out);
         }

@@ -12,21 +12,21 @@ pub trait MediaFileLike {
     fn len(&self) -> u64;
 }
 
-pub struct MediaFile {
-    pub path: PathBuf,
+pub struct MediaFile<'a> {
+    pub path: &'a PathBuf,
 }
 
-impl MediaFileLike for MediaFile {
+impl<'a> MediaFileLike for MediaFile<'a> {
     fn name(&self) -> &str {
-        self.path.as_path().file_name().unwrap().to_str().unwrap()
+        self.path.file_name().unwrap().to_str().unwrap()
     }
 
     fn stem(&self) -> &str {
-        self.path.as_path().file_stem().unwrap().to_str().unwrap()
+        self.path.file_stem().unwrap().to_str().unwrap()
     }
 
     fn extension(&self) -> &str {
-        self.path.as_path().extension().unwrap().to_str().unwrap()
+        self.path.extension().unwrap().to_str().unwrap()
     }
 
     fn len(&self) -> u64 {
@@ -77,7 +77,7 @@ impl FeedGenerator {
         channel.pretty_write_to(&mut writer, b' ', 2).unwrap();
     }
 
-    fn mime_type(file: &MediaFileLike) -> String {
+    fn mime_type(file: &dyn MediaFileLike) -> String {
         match file.extension() {
             "aac" => "audio/aac".to_owned(),
             "m4a" => "audio/mp4".to_owned(),
@@ -91,8 +91,8 @@ impl FeedGenerator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::Path;
     use roxmltree::{Document, Node};
+    use std::path::Path;
 
     fn get_child_node_text<'a>(parent: &'a Node, child_tag: &str) -> &'a str {
         parent
@@ -154,9 +154,8 @@ mod tests {
 
     #[test]
     fn generates_xml_for_files() {
-        let file = MediaFile {
-            path: Path::new("test_fixtures/dir1/file1.mp3").to_path_buf(),
-        };
+        let path = Path::new("test_fixtures/dir1/file1.mp3").to_path_buf();
+        let file = MediaFile { path: &path };
         let generator = FeedGenerator {
             title: "Feed Title 1".to_owned(),
             base_url: "https://eg.test".to_owned(),
