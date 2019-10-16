@@ -13,8 +13,8 @@ pub trait MediaFileLike {
     fn len(&self) -> u64;
 }
 
-struct MediaFile {
-    path: PathBuf,
+pub struct MediaFile {
+    pub path: PathBuf,
 }
 
 impl MediaFileLike for MediaFile {
