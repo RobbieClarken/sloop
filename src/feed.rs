@@ -2,7 +2,6 @@ use chrono::{Duration, Utc};
 use rss::extension::itunes::{ITunesChannelExtensionBuilder, NAMESPACE};
 use rss::{ChannelBuilder, EnclosureBuilder, Item, ItemBuilder};
 use std::collections::HashMap;
-use std::fs;
 use std::io::prelude::*;
 use std::path::PathBuf;
 
@@ -41,17 +40,6 @@ pub struct FeedGenerator {
 }
 
 impl FeedGenerator {
-    pub fn generate_for_dir<W: Write>(&self, files_dir: &str, writer: W) {
-        let mut files = Vec::new();
-        for dir_entry in fs::read_dir(files_dir).unwrap() {
-            let file = MediaFile {
-                path: dir_entry.unwrap().path(),
-            };
-            files.push(file);
-        }
-        self.generate_for_files(files, writer);
-    }
-
     pub fn generate_for_files<W: Write, M: MediaFileLike>(&self, files: Vec<M>, mut writer: W) {
         let namespaces: HashMap<String, String> = [("itunes".to_string(), NAMESPACE.to_string())]
             .iter()
@@ -103,6 +91,7 @@ impl FeedGenerator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::Path;
     use roxmltree::{Document, Node};
 
     fn get_child_node_text<'a>(parent: &'a Node, child_tag: &str) -> &'a str {
@@ -164,13 +153,16 @@ mod tests {
     }
 
     #[test]
-    fn generates_xml_for_dir() {
+    fn generates_xml_for_files() {
+        let file = MediaFile {
+            path: Path::new("test_fixtures/dir1/file1.mp3").to_path_buf(),
+        };
         let generator = FeedGenerator {
             title: "Feed Title 1".to_owned(),
             base_url: "https://eg.test".to_owned(),
         };
         let mut buffer = Vec::new();
-        generator.generate_for_dir("test_fixtures/dir1/", &mut buffer);
+        generator.generate_for_files(vec![file], &mut buffer);
         let feed = String::from_utf8(buffer).unwrap();
         assert_contains!(feed, "<title>Feed Title 1</title>");
         assert_contains!(feed, "xmlns:itunes");
