@@ -43,7 +43,7 @@ impl S3Uploader {
 
     pub fn upload(&self, files: Vec<PathBuf>) -> Result<(), UploadError> {
         self.create_bucket()?;
-        self.make_bucket_public();
+        self.make_bucket_public()?;
         self.upload_files(files)?;
         Ok(())
     }
@@ -69,7 +69,7 @@ impl S3Uploader {
         Ok(())
     }
 
-    fn make_bucket_public(&self) {
+    fn make_bucket_public(&self) -> Result<(), UploadError> {
         let policy = json!({
             "Version": "2012-10-17",
             "Statement": [{
@@ -86,7 +86,12 @@ impl S3Uploader {
             policy,
             ..Default::default()
         };
-        self.client.put_bucket_policy(policy_request);
+        self.client
+            .put_bucket_policy(policy_request)
+            .sync()
+            .or(Err(UploadError {
+                message: "failed to set bucket policy".to_owned(),
+            }))
     }
 
     fn upload_files(&self, files: Vec<PathBuf>) -> Result<(), UploadError> {
@@ -113,6 +118,7 @@ mod tests {
 
     use super::*;
     use rusoto_s3::CreateBucketError::BucketAlreadyExists;
+    use rusoto_s3::PutBucketPolicyError;
     use serde::Deserialize;
     use serde_json;
     use std::cell::RefCell;
@@ -211,6 +217,20 @@ mod tests {
         assert_eq!(statement.Principal, "*");
         assert_eq!(statement.Action[0], "s3:GetObject");
         assert_eq!(statement.Resource[0], "arn:aws:s3:::bucket1/*");
+    }
+
+    #[test]
+    fn returns_error_if_setting_bucket_policy_fails() {
+        let s3 = s3_mock::S3Mock {
+            put_bucket_policy_error: true,
+            ..Default::default()
+        };
+        let uploader = S3Uploader {
+            client: Box::new(s3),
+            region: String::from("region1"),
+            bucket_name: String::from("bucket1"),
+        };
+        assert!(uploader.upload(vec![]).is_err(), "expected error");
     }
 
     #[test]

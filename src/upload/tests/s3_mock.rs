@@ -17,6 +17,7 @@ pub struct S3Mock {
     pub create_bucket_requests: Rc<RefCell<Vec<CreateBucketRequest>>>,
     pub create_bucket_error: Option<CreateBucketError>,
     pub put_bucket_policy_requests: Rc<RefCell<Vec<PutBucketPolicyRequest>>>,
+    pub put_bucket_policy_error: bool,
     pub put_object_requests: Rc<RefCell<Vec<PutObjectData>>>,
 }
 
@@ -27,7 +28,7 @@ impl S3 for S3Mock {
     ) -> RusotoFuture<CreateBucketOutput, CreateBucketError> {
         self.create_bucket_requests.borrow_mut().push(request);
         match &self.create_bucket_error {
-            None => RusotoFuture::from(Ok(Default::default())),
+            None => Ok(Default::default()).into(),
             Some(e) => match e {
                 BucketAlreadyOwnedByYou(msg) => Err(RusotoError::Service(BucketAlreadyOwnedByYou(
                     msg.to_string(),
@@ -45,7 +46,11 @@ impl S3 for S3Mock {
         request: PutBucketPolicyRequest,
     ) -> RusotoFuture<(), PutBucketPolicyError> {
         self.put_bucket_policy_requests.borrow_mut().push(request);
-        RusotoFuture::from(Ok(()))
+        if self.put_bucket_policy_error {
+            Err(RusotoError::ParseError("".to_owned())).into()
+        } else {
+            Ok(()).into()
+        }
     }
 
     fn put_object(
@@ -64,7 +69,7 @@ impl S3 for S3Mock {
             key: request.key,
             body,
         });
-        RusotoFuture::from(Ok(Default::default()))
+        Ok(Default::default()).into()
     }
 
     fn abort_multipart_upload(
