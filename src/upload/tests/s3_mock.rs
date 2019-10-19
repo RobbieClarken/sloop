@@ -16,6 +16,7 @@ pub struct PutObjectData {
 pub struct S3Mock {
     pub create_bucket_requests: Rc<RefCell<Vec<CreateBucketRequest>>>,
     pub create_bucket_error: Option<CreateBucketError>,
+    pub put_bucket_policy_requests: Rc<RefCell<Vec<PutBucketPolicyRequest>>>,
     pub put_object_requests: Rc<RefCell<Vec<PutObjectData>>>,
 }
 
@@ -37,6 +38,14 @@ impl S3 for S3Mock {
                 }
             },
         }
+    }
+
+    fn put_bucket_policy(
+        &self,
+        request: PutBucketPolicyRequest,
+    ) -> RusotoFuture<(), PutBucketPolicyError> {
+        self.put_bucket_policy_requests.borrow_mut().push(request);
+        RusotoFuture::from(Ok(()))
     }
 
     fn put_object(
@@ -483,13 +492,6 @@ impl S3 for S3Mock {
         &self,
         _: PutBucketNotificationConfigurationRequest,
     ) -> RusotoFuture<(), PutBucketNotificationConfigurationError> {
-        unimplemented!()
-    }
-
-    fn put_bucket_policy(
-        &self,
-        _: PutBucketPolicyRequest,
-    ) -> RusotoFuture<(), PutBucketPolicyError> {
         unimplemented!()
     }
 

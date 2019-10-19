@@ -1,6 +1,10 @@
 use rusoto_core::{Region, RusotoError};
 use rusoto_s3::CreateBucketError::BucketAlreadyOwnedByYou;
-use rusoto_s3::{CreateBucketConfiguration, CreateBucketRequest, PutObjectRequest, S3Client, S3};
+use rusoto_s3::{
+    CreateBucketConfiguration, CreateBucketRequest, PutBucketPolicyRequest, PutObjectRequest,
+    S3Client, S3,
+};
+use serde_json::json;
 use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
@@ -39,6 +43,7 @@ impl S3Uploader {
 
     pub fn upload(&self, files: Vec<PathBuf>) -> Result<(), UploadError> {
         self.create_bucket()?;
+        self.make_bucket_public();
         self.upload_files(files)?;
         Ok(())
     }
@@ -62,6 +67,26 @@ impl S3Uploader {
             }
         }
         Ok(())
+    }
+
+    fn make_bucket_public(&self) {
+        let policy = json!({
+            "Version": "2012-10-17",
+            "Statement": [{
+                "Sid": "AddPerm",
+                "Effect": "Allow",
+                "Principal": "*",
+                "Action": ["s3:GetObject"],
+                "Resource": [format!("arn:aws:s3:::{}/*", &self.bucket_name)],
+            }]
+        })
+        .to_string();
+        let policy_request = PutBucketPolicyRequest {
+            bucket: self.bucket_name.to_owned(),
+            policy,
+            ..Default::default()
+        };
+        self.client.put_bucket_policy(policy_request);
     }
 
     fn upload_files(&self, files: Vec<PathBuf>) -> Result<(), UploadError> {
@@ -88,9 +113,28 @@ mod tests {
 
     use super::*;
     use rusoto_s3::CreateBucketError::BucketAlreadyExists;
+    use serde::Deserialize;
+    use serde_json;
     use std::cell::RefCell;
     use std::path::Path;
     use std::rc::Rc;
+
+    #[derive(Deserialize)]
+    #[allow(non_snake_case)]
+    struct BucketPolicy {
+        Version: String,
+        Statement: Vec<BucketPolicyStatement>,
+    }
+
+    #[derive(Deserialize)]
+    #[allow(non_snake_case)]
+    struct BucketPolicyStatement {
+        Sid: String,
+        Effect: String,
+        Principal: String,
+        Action: Vec<String>,
+        Resource: Vec<String>,
+    }
 
     #[test]
     fn creates_an_s3_bucket() {
@@ -142,6 +186,31 @@ mod tests {
             bucket_name: String::from("bucket1"),
         };
         assert_eq!(uploader.upload(vec![]).is_err(), true);
+    }
+
+    #[test]
+    fn sets_bucket_policy_to_public() {
+        let requests = Rc::new(RefCell::new(Vec::new()));
+        let s3 = s3_mock::S3Mock {
+            put_bucket_policy_requests: Rc::clone(&requests),
+            ..Default::default()
+        };
+        let uploader = S3Uploader {
+            client: Box::new(s3),
+            region: String::from("region1"),
+            bucket_name: String::from("bucket1"),
+        };
+        uploader.upload(vec![]).unwrap();
+        let request = requests.borrow().get(0).unwrap().clone();
+        assert_eq!(request.bucket, "bucket1");
+        let policy: BucketPolicy = serde_json::from_str(&request.policy).unwrap();
+        assert_eq!(policy.Version, "2012-10-17");
+        let statement = &policy.Statement[0];
+        assert_eq!(statement.Sid, "AddPerm");
+        assert_eq!(statement.Effect, "Allow");
+        assert_eq!(statement.Principal, "*");
+        assert_eq!(statement.Action[0], "s3:GetObject");
+        assert_eq!(statement.Resource[0], "arn:aws:s3:::bucket1/*");
     }
 
     #[test]
