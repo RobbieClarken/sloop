@@ -3,13 +3,14 @@ use rss::extension::itunes::{ITunesChannelExtensionBuilder, NAMESPACE};
 use rss::{ChannelBuilder, EnclosureBuilder, Item, ItemBuilder};
 use std::collections::HashMap;
 use std::io::prelude::*;
+use std::io::Error;
 use std::path::PathBuf;
 
 pub trait MediaFileLike {
     fn name(&self) -> &str;
     fn stem(&self) -> &str;
     fn extension(&self) -> &str;
-    fn len(&self) -> u64;
+    fn len(&self) -> Result<u64, Error>;
 }
 
 pub struct MediaFile<'a> {
@@ -29,8 +30,8 @@ impl<'a> MediaFileLike for MediaFile<'a> {
         self.path.extension().unwrap().to_str().unwrap()
     }
 
-    fn len(&self) -> u64 {
-        std::fs::metadata(&self.path).unwrap().len()
+    fn len(&self) -> Result<u64, Error> {
+        Ok(std::fs::metadata(&self.path)?.len())
     }
 }
 
@@ -40,7 +41,11 @@ pub struct FeedGenerator {
 }
 
 impl FeedGenerator {
-    pub fn generate_for_files<W: Write, M: MediaFileLike>(&self, files: Vec<M>, mut writer: W) {
+    pub fn generate_for_files<W: Write, M: MediaFileLike>(
+        &self,
+        files: Vec<M>,
+        mut writer: W,
+    ) -> Result<(), Error> {
         let namespaces: HashMap<String, String> = [("itunes".to_string(), NAMESPACE.to_string())]
             .iter()
             .cloned()
@@ -55,8 +60,8 @@ impl FeedGenerator {
             let pub_date = (today - Duration::days(i as i64)).to_rfc2822();
             let enclosure = EnclosureBuilder::default()
                 .url(format!("{}/{}", self.base_url, file.name()))
-                .mime_type(FeedGenerator::mime_type(file))
-                .length(file.len().to_string())
+                .mime_type(FeedGenerator::mime_type(file.extension()))
+                .length(file.len()?.to_string())
                 .build()
                 .unwrap();
             let item = ItemBuilder::default()
@@ -75,10 +80,11 @@ impl FeedGenerator {
             .build()
             .unwrap();
         channel.pretty_write_to(&mut writer, b' ', 2).unwrap();
+        Ok(())
     }
 
-    fn mime_type(file: &dyn MediaFileLike) -> String {
-        match file.extension() {
+    fn mime_type(extension: &str) -> String {
+        match extension {
             "aac" => "audio/aac".to_owned(),
             "m4a" => "audio/mp4".to_owned(),
             "mp3" => "audio/mpeg".to_owned(),
@@ -134,8 +140,8 @@ mod tests {
             &self.extension
         }
 
-        fn len(&self) -> u64 {
-            self.len
+        fn len(&self) -> Result<u64, Error> {
+            Ok(self.len)
         }
     }
 
@@ -161,7 +167,8 @@ mod tests {
             base_url: "https://eg.test".to_owned(),
         };
         let mut buffer = Vec::new();
-        generator.generate_for_files(vec![file], &mut buffer);
+        let result = generator.generate_for_files(vec![file], &mut buffer);
+        assert!(result.is_ok(), "expected generate_for_files to return ok");
         let feed = String::from_utf8(buffer).unwrap();
         assert_contains!(feed, "<title>Feed Title 1</title>");
         assert_contains!(feed, "xmlns:itunes");
@@ -174,27 +181,27 @@ mod tests {
     }
 
     #[test]
+    fn returns_error_if_file_does_not_exist() {
+        let path = Path::new("invalid-file-1.mp3").to_path_buf();
+        let file = MediaFile { path: &path };
+        let generator = FeedGenerator {
+            title: "Feed Title 1".to_owned(),
+            base_url: "https://eg.test".to_owned(),
+        };
+        let mut buffer = Vec::new();
+        let result = generator.generate_for_files(vec![file], &mut buffer);
+        assert!(
+            result.is_err(),
+            "expected generate_for_files to return an error"
+        );
+    }
+
+    #[test]
     fn outputs_correct_mime_type() {
-        let mp3 = MockMediaFile {
-            extension: "mp3".to_owned(),
-            ..Default::default()
-        };
-        assert_eq!(FeedGenerator::mime_type(&mp3), "audio/mpeg");
-        let mp4 = MockMediaFile {
-            extension: "mp4".to_owned(),
-            ..Default::default()
-        };
-        assert_eq!(FeedGenerator::mime_type(&mp4), "audio/mp4");
-        let aac = MockMediaFile {
-            extension: "aac".to_owned(),
-            ..Default::default()
-        };
-        assert_eq!(FeedGenerator::mime_type(&aac), "audio/aac");
-        let m4a = MockMediaFile {
-            extension: "m4a".to_owned(),
-            ..Default::default()
-        };
-        assert_eq!(FeedGenerator::mime_type(&m4a), "audio/mp4");
+        assert_eq!(FeedGenerator::mime_type("mp3"), "audio/mpeg");
+        assert_eq!(FeedGenerator::mime_type("mp4"), "audio/mp4");
+        assert_eq!(FeedGenerator::mime_type("aac"), "audio/aac");
+        assert_eq!(FeedGenerator::mime_type("m4a"), "audio/mp4");
     }
 
     #[test]
@@ -218,7 +225,7 @@ mod tests {
             base_url: "https://eg.test".to_owned(),
         };
         let mut buffer = Vec::new();
-        generator.generate_for_files(files, &mut buffer);
+        generator.generate_for_files(files, &mut buffer).unwrap();
         let feed = String::from_utf8(buffer).unwrap();
         let doc = Document::parse(&feed).unwrap();
         let items: Vec<Node> = doc

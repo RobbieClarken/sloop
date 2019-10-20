@@ -18,13 +18,13 @@ pub struct S3Uploader {
 
 #[derive(Debug)]
 pub struct UploadError {
-    message: String,
+    pub message: String,
 }
 
 impl S3Uploader {
     pub fn new(region: &str, bucket_name: &str) -> Result<Self, UploadError> {
         let rusoto_region = Region::from_str(region).or(Err(UploadError {
-            message: format!("invalid region: {}", region),
+            message: format!("Invalid region: {}", region),
         }))?;
         let client = S3Client::new(rusoto_region);
         Ok(Self {
@@ -90,7 +90,7 @@ impl S3Uploader {
             .put_bucket_policy(policy_request)
             .sync()
             .or(Err(UploadError {
-                message: "failed to set bucket policy".to_owned(),
+                message: "Failed to set bucket policy".to_owned(),
             }))
     }
 
@@ -118,7 +118,6 @@ mod tests {
 
     use super::*;
     use rusoto_s3::CreateBucketError::BucketAlreadyExists;
-    use rusoto_s3::PutBucketPolicyError;
     use serde::Deserialize;
     use serde_json;
     use std::cell::RefCell;

@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::path::PathBuf;
+use std::process;
 use structopt::StructOpt;
 
 mod feed;
@@ -49,11 +50,23 @@ fn main() {
                 base_url: uploader.base_url(),
             };
             let media_files = files.iter().map(|path| feed::MediaFile { path }).collect();
-            feed.generate_for_files(media_files, File::create(&out).unwrap());
+            if let Err(e) = feed.generate_for_files(media_files, File::create(&out).unwrap()) {
+                eprintln!("Failed to create feed: {}", e);
+                process::exit(1);
+            }
             if upload {
                 let mut upload_files = vec![out];
                 upload_files.extend(files);
-                uploader.upload(upload_files).unwrap();
+                match uploader.upload(upload_files) {
+                    Ok(_) => {
+                        eprintln!("Upload complete");
+                        process::exit(0);
+                    }
+                    Err(e) => {
+                        eprintln!("Upload error: {}", e.message);
+                        process::exit(1);
+                    }
+                }
             }
         }
         Opt::Upload {
