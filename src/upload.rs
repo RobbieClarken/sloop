@@ -41,6 +41,13 @@ impl S3Uploader {
         )
     }
 
+    pub fn url_for_file(&self, file: &PathBuf) -> String {
+        format!(
+            "{}/{}",
+            self.base_url(), file.file_name().unwrap().to_str().unwrap()
+        )
+    }
+
     pub fn upload(&self, files: Vec<PathBuf>) -> Result<(), UploadError> {
         self.create_bucket()?;
         self.make_bucket_public()?;
@@ -266,6 +273,20 @@ mod tests {
         assert_eq!(
             uploader.base_url(),
             "https://bucket1.s3-region1.amazonaws.com"
+        );
+    }
+
+    #[test]
+    fn constructs_url_for_file() {
+        let s3: s3_mock::S3Mock = Default::default();
+        let uploader = S3Uploader {
+            client: Box::new(s3),
+            region: String::from("region1"),
+            bucket_name: String::from("bucket1"),
+        };
+        assert_eq!(
+            uploader.url_for_file(&PathBuf::from("/tmp/file1.txt")),
+            "https://bucket1.s3-region1.amazonaws.com/file1.txt"
         );
     }
 }

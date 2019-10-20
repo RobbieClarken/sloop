@@ -55,11 +55,13 @@ fn main() {
                 process::exit(1);
             }
             if upload {
+                let feed_url = uploader.url_for_file(&out);
                 let mut upload_files = vec![out];
                 upload_files.extend(files);
                 match uploader.upload(upload_files) {
                     Ok(_) => {
                         eprintln!("Upload complete");
+                        eprintln!("Podcast available at: {}", feed_url);
                         process::exit(0);
                     }
                     Err(e) => {
