@@ -7,7 +7,7 @@ use std::io::prelude::*;
 use std::io::Error;
 use std::path::PathBuf;
 
-const ESCAPE_CHAR_SET: &AsciiSet = &NON_ALPHANUMERIC.remove(b'.');
+const ESCAPE_CHAR_SET: &AsciiSet = &NON_ALPHANUMERIC.remove(b'.').remove(b'_');
 
 pub trait MediaFileLike {
     fn name(&self) -> &str;
@@ -69,7 +69,7 @@ impl FeedGenerator {
                 .build()
                 .unwrap();
             let item = ItemBuilder::default()
-                .title(Some(String::from(file.stem())))
+                .title(Some(file.stem().replace("_", " ").to_owned()))
                 .enclosure(Some(enclosure))
                 .pub_date(pub_date)
                 .build()
@@ -285,6 +285,36 @@ mod tests {
         assert_eq!(
             enclosure.attribute("url"),
             Some("https://eg.test/a%2Bb%20c%26d.mp3")
+        );
+    }
+
+    #[test]
+    fn replaces_underscores_with_spaces_in_title() {
+        let files = vec![MockMediaFile {
+            name: "ab_cd.mp3".to_owned(),
+            stem: "ab_cd".to_owned(),
+            ..Default::default()
+        }];
+        let generator = FeedGenerator {
+            title: "Feed Title 1".to_owned(),
+            base_url: "https://eg.test".to_owned(),
+        };
+        let mut buffer = Vec::new();
+        generator.generate_for_files(files, &mut buffer).unwrap();
+        let feed = String::from_utf8(buffer).unwrap();
+        let doc = Document::parse(&feed).unwrap();
+        let item = doc
+            .descendants()
+            .find(|n| n.tag_name().name() == "item")
+            .unwrap();
+        assert_eq!(get_child_node_text(&item, "title"), "ab cd");
+        let enclosure = doc
+            .descendants()
+            .find(|n| n.tag_name().name() == "enclosure")
+            .unwrap();
+        assert_eq!(
+            enclosure.attribute("url"),
+            Some("https://eg.test/ab_cd.mp3")
         );
     }
 }
