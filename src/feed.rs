@@ -1,10 +1,13 @@
 use chrono::{Duration, Utc};
+use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 use rss::extension::itunes::{ITunesChannelExtensionBuilder, NAMESPACE};
 use rss::{ChannelBuilder, EnclosureBuilder, Item, ItemBuilder};
 use std::collections::HashMap;
 use std::io::prelude::*;
 use std::io::Error;
 use std::path::PathBuf;
+
+const ESCAPE_CHAR_SET: &AsciiSet = &NON_ALPHANUMERIC.remove(b'.');
 
 pub trait MediaFileLike {
     fn name(&self) -> &str;
@@ -58,8 +61,9 @@ impl FeedGenerator {
         let today = Utc::today().and_hms(0, 0, 0);
         for (i, file) in files.iter().enumerate() {
             let pub_date = (today - Duration::days(i as i64)).to_rfc2822();
+            let escaped_name = utf8_percent_encode(file.name(), ESCAPE_CHAR_SET);
             let enclosure = EnclosureBuilder::default()
-                .url(format!("{}/{}", self.base_url, file.name()))
+                .url(format!("{}/{}", self.base_url, escaped_name))
                 .mime_type(FeedGenerator::mime_type(file.extension()))
                 .length(file.len()?.to_string())
                 .build()
@@ -251,6 +255,36 @@ mod tests {
         assert_eq!(
             get_child_node_text(item, "pubDate"),
             (today - Duration::days(2)).to_rfc2822()
+        );
+    }
+
+    #[test]
+    fn handles_special_chars_in_filenames() {
+        let files = vec![MockMediaFile {
+            name: "a+b c&d.mp3".to_owned(),
+            stem: "a+b c&d".to_owned(),
+            ..Default::default()
+        }];
+        let generator = FeedGenerator {
+            title: "Feed Title 1".to_owned(),
+            base_url: "https://eg.test".to_owned(),
+        };
+        let mut buffer = Vec::new();
+        generator.generate_for_files(files, &mut buffer).unwrap();
+        let feed = String::from_utf8(buffer).unwrap();
+        let doc = Document::parse(&feed).unwrap();
+        let item = doc
+            .descendants()
+            .find(|n| n.tag_name().name() == "item")
+            .unwrap();
+        assert_eq!(get_child_node_text(&item, "title"), "a+b c&d");
+        let enclosure = doc
+            .descendants()
+            .find(|n| n.tag_name().name() == "enclosure")
+            .unwrap();
+        assert_eq!(
+            enclosure.attribute("url"),
+            Some("https://eg.test/a%2Bb%20c%26d.mp3")
         );
     }
 }
