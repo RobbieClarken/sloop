@@ -1,3 +1,5 @@
+use base64;
+use md5;
 use rusoto_core::{Region, RusotoError};
 use rusoto_s3::CreateBucketError::BucketAlreadyOwnedByYou;
 use rusoto_s3::{
@@ -44,7 +46,8 @@ impl S3Uploader {
     pub fn url_for_file(&self, file: &PathBuf) -> String {
         format!(
             "{}/{}",
-            self.base_url(), file.file_name().unwrap().to_str().unwrap()
+            self.base_url(),
+            file.file_name().unwrap().to_str().unwrap()
         )
     }
 
@@ -107,10 +110,12 @@ impl S3Uploader {
             let mut file = fs::File::open(&p).unwrap();
             let mut body = vec![];
             file.read_to_end(&mut body).unwrap();
+            let content_md5 = Some(base64::encode(&md5::compute(&body).0));
             let request = PutObjectRequest {
                 body: Some(body.into()),
                 bucket: self.bucket_name.clone(),
                 key: file_name.to_owned(),
+                content_md5,
                 ..Default::default()
             };
             self.client.put_object(request).sync().unwrap();
@@ -260,6 +265,10 @@ mod tests {
         assert_eq!(request.bucket, String::from("bucket1"));
         assert_eq!(request.key, String::from("file1.mp3"));
         assert_eq!(request.body, b"data1\n");
+        assert_eq!(
+            request.content_md5,
+            Some("qzwQPf7mliTEhrdNPJDbZQ==".to_owned())
+        );
     }
 
     #[test]

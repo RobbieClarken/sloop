@@ -5,7 +5,9 @@ authors = ["RobbieClarken <robbie.clarken@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+base64 = "0.10"
 chrono = "0.4"
+md5 = "0.6"
 percent-encoding = "2.1"
 rss = "1.8"
 rusoto_core = "0.41"

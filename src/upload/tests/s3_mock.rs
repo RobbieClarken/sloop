@@ -10,6 +10,7 @@ pub struct PutObjectData {
     pub bucket: String,
     pub key: String,
     pub body: Vec<u8>,
+    pub content_md5: Option<String>,
 }
 
 #[derive(Default)]
@@ -68,6 +69,7 @@ impl S3 for S3Mock {
             bucket: request.bucket,
             key: request.key,
             body,
+            content_md5: request.content_md5,
         });
         Ok(Default::default()).into()
     }
