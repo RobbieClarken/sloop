@@ -1,8 +1,16 @@
 [package]
 name = "sloop"
-version = "0.1.0"
+version = "1.0.0"
 authors = ["RobbieClarken <robbie.clarken@gmail.com>"]
 edition = "2018"
+license = "MIT"
+description = "Create an RSS feed from audiobook media files and upload to S3"
+readme = "README.md"
+documentation = "https://github.com/RobbieClarken/sloop"
+homepage = "https://github.com/RobbieClarken/sloop"
+repository = "https://github.com/RobbieClarken/sloop"
+keywords = ["audiobook", "podcast", "rss"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 base64 = "0.10"

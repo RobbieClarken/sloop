@@ -61,7 +61,7 @@ fn main() {
                 match uploader.upload(upload_files) {
                     Ok(_) => {
                         eprintln!("Upload complete");
-                        eprintln!("Podcast available at: {}", feed_url);
+                        eprintln!("Podcast available at {}", feed_url);
                         process::exit(0);
                     }
                     Err(e) => {

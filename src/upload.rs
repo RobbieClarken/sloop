@@ -118,6 +118,7 @@ impl S3Uploader {
                 content_md5,
                 ..Default::default()
             };
+            println!("Uploading {}", &file_name);
             self.client.put_object(request).sync().unwrap();
         }
         Ok(())
