@@ -25,9 +25,11 @@ pub struct UploadError {
 
 impl S3Uploader {
     pub fn new(region: &str, bucket_name: &str) -> Result<Self, UploadError> {
-        let rusoto_region = Region::from_str(region).or(Err(UploadError {
-            message: format!("Invalid region: {}", region),
-        }))?;
+        let rusoto_region = Region::from_str(region).or_else(|_| {
+            Err(UploadError {
+                message: format!("Invalid region: {}", region),
+            })
+        })?;
         let client = S3Client::new(rusoto_region);
         Ok(Self {
             client: Box::new(client),
@@ -99,9 +101,11 @@ impl S3Uploader {
         self.client
             .put_bucket_policy(policy_request)
             .sync()
-            .or(Err(UploadError {
-                message: "Failed to set bucket policy".to_owned(),
-            }))
+            .or_else(|_| {
+                Err(UploadError {
+                    message: "Failed to set bucket policy".to_owned(),
+                })
+            })
     }
 
     fn upload_files(&self, files: Vec<PathBuf>) -> Result<(), UploadError> {

@@ -104,7 +104,7 @@ mod tests {
     use roxmltree::{Document, Node};
     use std::path::Path;
 
-    fn get_child_node_text<'a>(parent: &'a Node, child_tag: &str) -> &'a str {
+    fn get_child_node_text<'a>(parent: &'a Node<'_, '_>, child_tag: &str) -> &'a str {
         parent
             .descendants()
             .find(|n| n.tag_name().name() == child_tag)
@@ -232,7 +232,7 @@ mod tests {
         generator.generate_for_files(files, &mut buffer).unwrap();
         let feed = String::from_utf8(buffer).unwrap();
         let doc = Document::parse(&feed).unwrap();
-        let items: Vec<Node> = doc
+        let items: Vec<Node<'_, '_>> = doc
             .descendants()
             .filter(|n| n.tag_name().name() == "item")
             .collect();
