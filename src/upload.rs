@@ -1,15 +1,13 @@
-use base64;
-use md5;
 use rusoto_core::{Region, RusotoError};
 use rusoto_s3::CreateBucketError::BucketAlreadyOwnedByYou;
 use rusoto_s3::{
-    CreateBucketConfiguration, CreateBucketRequest, PutBucketPolicyRequest, PutObjectRequest,
-    S3Client, S3,
+    CreateBucketConfiguration, CreateBucketRequest, DeletePublicAccessBlockRequest,
+    PutBucketPolicyRequest, PutObjectRequest, S3Client, S3,
 };
 use serde_json::json;
 use std::fs;
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 pub struct S3Uploader {
@@ -25,10 +23,8 @@ pub struct UploadError {
 
 impl S3Uploader {
     pub fn new(region: &str, bucket_name: &str) -> Result<Self, UploadError> {
-        let rusoto_region = Region::from_str(region).or_else(|_| {
-            Err(UploadError {
-                message: format!("Invalid region: {}", region),
-            })
+        let rusoto_region = Region::from_str(region).map_err(|_| UploadError {
+            message: format!("Invalid region: {}", region),
         })?;
         let client = S3Client::new(rusoto_region);
         Ok(Self {
@@ -45,7 +41,7 @@ impl S3Uploader {
         )
     }
 
-    pub fn url_for_file(&self, file: &PathBuf) -> String {
+    pub fn url_for_file(&self, file: &Path) -> String {
         format!(
             "{}/{}",
             self.base_url(),
@@ -82,6 +78,14 @@ impl S3Uploader {
     }
 
     fn make_bucket_public(&self) -> Result<(), UploadError> {
+        self.client
+            .delete_public_access_block(DeletePublicAccessBlockRequest {
+                bucket: self.bucket_name.to_owned(),
+            })
+            .sync()
+            .map_err(|_| UploadError {
+                message: "Failed to delete public access block".to_owned(),
+            })?;
         let policy = json!({
             "Version": "2012-10-17",
             "Statement": [{
@@ -101,10 +105,8 @@ impl S3Uploader {
         self.client
             .put_bucket_policy(policy_request)
             .sync()
-            .or_else(|_| {
-                Err(UploadError {
-                    message: "Failed to set bucket policy".to_owned(),
-                })
+            .map_err(|_| UploadError {
+                message: "Failed to set bucket policy".to_owned(),
             })
     }
 
@@ -136,7 +138,6 @@ mod tests {
     use super::*;
     use rusoto_s3::CreateBucketError::BucketAlreadyExists;
     use serde::Deserialize;
-    use serde_json;
     use std::cell::RefCell;
     use std::path::Path;
     use std::rc::Rc;
@@ -207,7 +208,7 @@ mod tests {
             region: String::from("region1"),
             bucket_name: String::from("bucket1"),
         };
-        assert_eq!(uploader.upload(vec![]).is_err(), true);
+        assert!(uploader.upload(vec![]).is_err());
     }
 
     #[test]

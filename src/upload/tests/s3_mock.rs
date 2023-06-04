@@ -42,6 +42,13 @@ impl S3 for S3Mock {
         }
     }
 
+    fn delete_public_access_block(
+        &self,
+        _input: DeletePublicAccessBlockRequest,
+    ) -> RusotoFuture<(), DeletePublicAccessBlockError> {
+        Ok(()).into()
+    }
+
     fn put_bucket_policy(
         &self,
         request: PutBucketPolicyRequest,
@@ -574,13 +581,6 @@ impl S3 for S3Mock {
         _: UploadPartCopyRequest,
     ) -> RusotoFuture<UploadPartCopyOutput, UploadPartCopyError> {
         unimplemented!()
-    }
-
-    fn delete_public_access_block(
-        &self,
-        _input: DeletePublicAccessBlockRequest,
-    ) -> RusotoFuture<(), DeletePublicAccessBlockError> {
-        unimplemented!();
     }
 
     fn get_bucket_policy_status(

@@ -34,7 +34,7 @@ impl<'a> MediaFileLike for MediaFile<'a> {
     }
 
     fn len(&self) -> Result<u64, Error> {
-        Ok(std::fs::metadata(&self.path)?.len())
+        Ok(std::fs::metadata(self.path)?.len())
     }
 }
 
@@ -58,7 +58,11 @@ impl FeedGenerator {
             .build()
             .unwrap();
         let mut items: Vec<Item> = Default::default();
-        let today = Utc::today().and_hms(0, 0, 0);
+        let today = Utc::now()
+            .date_naive()
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .and_utc();
         for (i, file) in files.iter().enumerate() {
             let pub_date = (today - Duration::days(i as i64)).to_rfc2822();
             let escaped_name = utf8_percent_encode(file.name(), ESCAPE_CHAR_SET);
@@ -69,7 +73,7 @@ impl FeedGenerator {
                 .build()
                 .unwrap();
             let item = ItemBuilder::default()
-                .title(Some(file.stem().replace("_", " ").to_owned()))
+                .title(Some(file.stem().replace('_', " ").to_owned()))
                 .enclosure(Some(enclosure))
                 .pub_date(pub_date)
                 .build()
@@ -154,10 +158,9 @@ mod tests {
         ($haystack:expr, $needle:expr) => {{
             assert!(
                 $haystack.contains($needle),
-                format!(
-                    "expected string to contain \"{}\", got:\n\n{}\n\n",
-                    $needle, $haystack
-                )
+                "expected string to contain \"{}\", got:\n\n{}\n\n",
+                $needle,
+                $haystack
             );
         }};
     }
@@ -237,7 +240,11 @@ mod tests {
             .filter(|n| n.tag_name().name() == "item")
             .collect();
         assert_eq!(items.len(), 3);
-        let today = Utc::today().and_hms(0, 0, 0);
+        let today = Utc::now()
+            .date_naive()
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .and_utc();
         let item = items.get(0).unwrap();
         assert_eq!(get_child_node_text(item, "title"), "file1");
         assert_eq!(
