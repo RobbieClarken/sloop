@@ -2,7 +2,7 @@ use chrono::{Duration, Utc};
 use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 use rss::extension::itunes::{ITunesChannelExtensionBuilder, NAMESPACE};
 use rss::{ChannelBuilder, EnclosureBuilder, Item, ItemBuilder};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::io::prelude::*;
 use std::io::Error;
 use std::path::PathBuf;
@@ -49,14 +49,13 @@ impl FeedGenerator {
         files: Vec<M>,
         mut writer: W,
     ) -> Result<(), Error> {
-        let namespaces: HashMap<String, String> = [("itunes".to_string(), NAMESPACE.to_string())]
+        let namespaces: BTreeMap<String, String> = [("itunes".to_string(), NAMESPACE.to_string())]
             .iter()
             .cloned()
             .collect();
         let itunes_ext = ITunesChannelExtensionBuilder::default()
             .block("Yes".to_string())
-            .build()
-            .unwrap();
+            .build();
         let mut items: Vec<Item> = Default::default();
         let today = Utc::now()
             .date_naive()
@@ -70,14 +69,12 @@ impl FeedGenerator {
                 .url(format!("{}/{}", self.base_url, escaped_name))
                 .mime_type(FeedGenerator::mime_type(file.extension()))
                 .length(file.len()?.to_string())
-                .build()
-                .unwrap();
+                .build();
             let item = ItemBuilder::default()
                 .title(Some(file.stem().replace('_', " ").to_owned()))
                 .enclosure(Some(enclosure))
                 .pub_date(pub_date)
-                .build()
-                .unwrap();
+                .build();
             items.push(item);
         }
         let channel = ChannelBuilder::default()
@@ -85,8 +82,7 @@ impl FeedGenerator {
             .title(self.title.clone())
             .itunes_ext(itunes_ext)
             .items(items)
-            .build()
-            .unwrap();
+            .build();
         channel.pretty_write_to(&mut writer, b' ', 2).unwrap();
         Ok(())
     }

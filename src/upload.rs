@@ -1,3 +1,5 @@
+use base64::Engine;
+use base64::engine::general_purpose::{STANDARD as base64};
 use rusoto_core::{Region, RusotoError};
 use rusoto_s3::CreateBucketError::BucketAlreadyOwnedByYou;
 use rusoto_s3::{
@@ -116,7 +118,7 @@ impl S3Uploader {
             let mut file = fs::File::open(&p).unwrap();
             let mut body = vec![];
             file.read_to_end(&mut body).unwrap();
-            let content_md5 = Some(base64::encode(&md5::compute(&body).0));
+            let content_md5 = Some(base64.encode(md5::compute(&body).0));
             let request = PutObjectRequest {
                 body: Some(body.into()),
                 bucket: self.bucket_name.clone(),

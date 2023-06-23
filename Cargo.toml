@@ -1,6 +1,6 @@
 [package]
 name = "sloop"
-version = "1.0.0"
+version = "1.1.0"
 authors = ["RobbieClarken <robbie.clarken@gmail.com>"]
 edition = "2018"
 license = "MIT"
@@ -13,16 +13,16 @@ keywords = ["audiobook", "podcast", "rss"]
 categories = ["command-line-utilities"]
 
 [dependencies]
-base64 = "0.10"
+base64 = "0.21"
 chrono = "0.4"
-md5 = "0.6"
+md5 = "0.7"
 percent-encoding = "2.1"
-rss = "1.8"
+rss = "2.0"
 rusoto_core = "0.41"
 rusoto_s3 = "0.41"
 serde_json = "1.0"
 structopt = "0.3"
 
 [dev-dependencies]
-roxmltree = "0.7"
+roxmltree = "0.18"
 serde = { version = "1.0", features = ["derive"] }
