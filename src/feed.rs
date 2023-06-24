@@ -38,9 +38,20 @@ impl<'a> MediaFileLike for MediaFile<'a> {
     }
 }
 
+pub struct Image {
+    pub path: PathBuf,
+}
+
+impl Image {
+    fn name(&self) -> &str {
+        self.path.file_name().unwrap().to_str().unwrap()
+    }
+}
+
 pub struct FeedGenerator {
     pub title: String,
     pub base_url: String,
+    pub image: Option<Image>,
 }
 
 impl FeedGenerator {
@@ -54,6 +65,11 @@ impl FeedGenerator {
             .cloned()
             .collect();
         let itunes_ext = ITunesChannelExtensionBuilder::default()
+            .image(
+                self.image
+                    .as_ref()
+                    .map(|image| format!("{}/{}", self.base_url, image.name())),
+            )
             .block("Yes".to_string())
             .build();
         let mut items: Vec<Item> = Default::default();
@@ -168,6 +184,9 @@ mod tests {
         let generator = FeedGenerator {
             title: "Feed Title 1".to_owned(),
             base_url: "https://eg.test".to_owned(),
+            image: Some(Image {
+                path: "/path/to/image1.png".into(),
+            }),
         };
         let mut buffer = Vec::new();
         let result = generator.generate_for_files(vec![file], &mut buffer);
@@ -176,6 +195,7 @@ mod tests {
         assert_contains!(feed, "<title>Feed Title 1</title>");
         assert_contains!(feed, "xmlns:itunes");
         assert_contains!(feed, "<itunes:block>Yes</itunes:block>");
+        assert_contains!(feed, "<itunes:image href=\"https://eg.test/image1.png\"/>");
         assert_contains!(
             feed,
             "url=\"https://eg.test/file1.mp3\" length=\"6\" type=\"audio/mpeg\""
@@ -190,6 +210,7 @@ mod tests {
         let generator = FeedGenerator {
             title: "Feed Title 1".to_owned(),
             base_url: "https://eg.test".to_owned(),
+            image: None,
         };
         let mut buffer = Vec::new();
         let result = generator.generate_for_files(vec![file], &mut buffer);
@@ -226,6 +247,7 @@ mod tests {
         let generator = FeedGenerator {
             title: "Feed Title 1".to_owned(),
             base_url: "https://eg.test".to_owned(),
+            image: None,
         };
         let mut buffer = Vec::new();
         generator.generate_for_files(files, &mut buffer).unwrap();
@@ -271,6 +293,7 @@ mod tests {
         let generator = FeedGenerator {
             title: "Feed Title 1".to_owned(),
             base_url: "https://eg.test".to_owned(),
+            image: None,
         };
         let mut buffer = Vec::new();
         generator.generate_for_files(files, &mut buffer).unwrap();
@@ -301,6 +324,7 @@ mod tests {
         let generator = FeedGenerator {
             title: "Feed Title 1".to_owned(),
             base_url: "https://eg.test".to_owned(),
+            image: None,
         };
         let mut buffer = Vec::new();
         generator.generate_for_files(files, &mut buffer).unwrap();

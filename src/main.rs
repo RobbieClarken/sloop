@@ -10,11 +10,13 @@ mod upload;
 #[structopt(about = "audiobook to podcast tool")]
 enum Opt {
     Feed {
-        #[structopt(short, long)]
+        #[structopt(long)]
         title: String,
-        #[structopt(short, long)]
+        #[structopt(long)]
+        image: Option<PathBuf>,
+        #[structopt(long)]
         region: String,
-        #[structopt(short, long)]
+        #[structopt(long)]
         bucket: String,
         #[structopt(short, long)]
         out: PathBuf,
@@ -24,9 +26,9 @@ enum Opt {
         files: Vec<PathBuf>,
     },
     Upload {
-        #[structopt(short, long)]
+        #[structopt(long)]
         region: String,
-        #[structopt(short, long)]
+        #[structopt(long)]
         bucket: String,
         #[structopt(parse(from_os_str))]
         files: Vec<PathBuf>,
@@ -38,6 +40,7 @@ fn main() {
     match opt {
         Opt::Feed {
             title,
+            image,
             region,
             bucket,
             out,
@@ -48,6 +51,7 @@ fn main() {
             let feed = feed::FeedGenerator {
                 title,
                 base_url: uploader.base_url(),
+                image: image.clone().map(|path| feed::Image { path }),
             };
             let media_files = files.iter().map(|path| feed::MediaFile { path }).collect();
             if let Err(e) = feed.generate_for_files(media_files, File::create(&out).unwrap()) {
@@ -57,6 +61,9 @@ fn main() {
             if upload {
                 let feed_url = uploader.url_for_file(&out);
                 let mut upload_files = vec![out];
+                if let Some(image) = &image {
+                    upload_files.push(image.clone());
+                }
                 upload_files.extend(files);
                 match uploader.upload(upload_files) {
                     Ok(_) => {
