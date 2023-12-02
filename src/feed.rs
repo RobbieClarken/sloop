@@ -107,6 +107,7 @@ impl FeedGenerator {
         match extension {
             "aac" => "audio/aac".to_owned(),
             "m4a" => "audio/mp4".to_owned(),
+            "m4b" => "audio/mp4".to_owned(),
             "mp3" => "audio/mpeg".to_owned(),
             "mp4" => "audio/mp4".to_owned(),
             _ => unimplemented!(),
